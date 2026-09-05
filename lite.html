@@ -30,6 +30,16 @@ const PARAMS = "go=1&fw=13.60&scan=0&log=1&build=" + BUILD_ID
 const scr = document.getElementById("scr");
 const lines = [];
 const LOG_URL = "https://adityas-macbook-pro.tailddb851.ts.net/log/";
+const __t0 = Date.now();
+setInterval(function () {
+  try { fetch(LOG_URL + encodeURIComponent("HB t=" + Math.floor((Date.now() - __t0) / 1000) + "s"), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+}, 10000);
+window.onerror = function (msg, src, line, col, err) {
+  try { fetch(LOG_URL + encodeURIComponent("PAGEERR " + msg + " @" + line + ":" + col), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+};
+window.addEventListener("unhandledrejection", function (e) {
+  try { fetch(LOG_URL + encodeURIComponent("REJ " + String(e.reason).slice(0, 120)), { cache: "no-store" }).catch(function () { }); } catch (e2) { }
+});
 window.addLog = function (t) {
   lines.push(String(t).slice(0, 200));
   if (lines.length > 24) lines.splice(0, lines.length - 24);
