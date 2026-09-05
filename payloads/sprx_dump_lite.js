@@ -35,6 +35,12 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         const box = document.getElementById("dumpStatus");
         if (box) box.textContent = message;
     };
+    const tel = (m) => {
+        try {
+            const u = window.__LITE_LOG_URL;
+            if (u) fetch(u + encodeURIComponent(String(m).slice(0, 160)), { cache: "no-store" }).catch(function () { });
+        } catch (e) { }
+    };
     const status = (message) => {
         const box = document.getElementById("dumpStatus");
         if (box) box.textContent = message;
@@ -171,7 +177,9 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         const endpoint = String(request.endpoint || "/__deepslop/dump").replace(/\/$/, "");
         const dumpId = "ds-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
         status(name + " / " + speedName.toUpperCase() + " / resolving module");
+        tel("PAYLOAD-RESOLVE-BEGIN");
         const module = normalizeModule(await resolveModule(name));
+        tel("PAYLOAD-RESOLVED base=" + module.base.toString(16));
         const base = module.base;
         const loadBias = module.loadBias;
 
@@ -190,6 +198,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (total > MAX_MODULE) throw new Error("module total exceeds safety bound");
         status(name + " / " + (preflightOnly ? "PREFLIGHT" : speedName.toUpperCase()) + " / checking receiver");
         const receiver = await pingReceiver(endpoint);
+        tel("PAYLOAD-PINGED");
 
         if (preflightOnly) {
             let verified = 0;
@@ -239,8 +248,10 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
             loadBias: hex(loadBias),
             segments,
         });
+        tel("PAYLOAD-STARTED total=" + total);
 
         let sent = 0;
+        let chunkIndex = 0;
         const startedAt = Date.now();
         setProgress(0, 0, total, null, "run");
         for (const segment of segments) {
@@ -271,8 +282,12 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
                 const elapsed = Math.max(1, Date.now() - startedAt);
                 const etaMs = sent ? Math.max(0, Math.round((total - sent) * elapsed / sent)) : null;
                 setProgress(total ? sent * 100 / total : 100, sent, total, etaMs, "run");
-                status(name + " / " + speedName.toUpperCase() + " / "
-                    + sent + "/" + total + " bytes");
+                chunkIndex++;
+                if (chunkIndex % 64 === 0) {
+                    status(name + " / " + speedName.toUpperCase() + " / "
+                        + sent + "/" + total + " bytes");
+                    tel("CHUNKS " + chunkIndex + " sent=" + sent + "/" + total);
+                }
                 if (speed.delay) await sleep(speed.delay);
                 else await sleep(0);
             }

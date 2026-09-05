@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ds</title>
+<style>
+body{background:#101418;color:#cfe;margin:0;padding:8px;font:12px/1.5 monospace}
+#cap{font-weight:700;font-size:14px}
+#cat.ok #status{color:#7f7}#cat.bad #status{color:#f77}#cat.run #status{color:#fc7}
+#scr{white-space:pre-wrap;max-height:45vh;overflow:hidden;color:#9bc}
+#dumpStatus{color:#fc7;font-weight:700}
+button{font:700 14px monospace;padding:10px 20px;margin-top:8px;background:#223146;color:#fff;border:1px solid #5e81ac;border-radius:6px}
+</style>
+</head>
+<body>
+<div id="cap">PoC PS5 FW 13.60 (lite)</div>
+<div id="cat"><span id="status">boot</span></div>
+<pre id="scr"></pre>
+<div id="dumpStatus">waiting…</div>
+<button id="go" onclick="boot()">RUN DUMP</button>
+<script>
+"use strict";
+const BUILD_ID = "local-lite-1";
+const ENDPOINT = "https://adityas-macbook-pro.tailddb851.ts.net/__deepslop/dump";
+const PARAMS = "go=1&fw=13.60&scan=0&log=1&build=" + BUILD_ID
+  + "&hc=0x56a58,0x56ca0,0x57ce8&gd=0x1d6fa&nt=0x48b0"
+  + "&gps=0x334e238&gpe=0x1b860&cls=0x334e228&cle=0x274e0&ers=0x334e230&ere=0xf7d0";
+
+// ---- minimal page helpers the exploit/payloads expect (all optional, guarded) ----
+const scr = document.getElementById("scr");
+const lines = [];
+const LOG_URL = "https://adityas-macbook-pro.tailddb851.ts.net/log/";
+window.__LITE_LOG_URL = LOG_URL;
+window.__LITE_SKIP_NOTIF = true;
+const __t0 = Date.now();
+const __hb = setInterval(function () {
+  try { fetch(LOG_URL + encodeURIComponent("HB t=" + Math.floor((Date.now() - __t0) / 1000) + "s"), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+}, 10000);
+window.__LITE_STOP_HB = function () { try { clearInterval(__hb); } catch (e) { } };
+window.onerror = function (msg, src, line, col, err) {
+  try { fetch(LOG_URL + encodeURIComponent("PAGEERR " + msg + " @" + line + ":" + col), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+};
+window.addEventListener("unhandledrejection", function (e) {
+  try { fetch(LOG_URL + encodeURIComponent("REJ " + String(e.reason).slice(0, 120)), { cache: "no-store" }).catch(function () { }); } catch (e2) { }
+});
+window.addLog = function (t) {
+  lines.push(String(t).slice(0, 200));
+  if (lines.length > 24) lines.splice(0, lines.length - 24);
+  scr.textContent = lines.join("\n");
+  try { fetch(LOG_URL + encodeURIComponent(String(t).slice(0, 180)), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+};
+window.setRuntimeStage = function (t) { };
+window.setRuntimeState = function (t) { document.getElementById("status").textContent = t; };
+window.setDumpProgress = function (pct, sent, total) {
+  document.getElementById("dumpStatus").textContent =
+    (total ? (Math.round(pct) + "% " + sent + "/" + total) : "…");
+};
+window.payOut = window.addLog;
+window.addExploitStatus = function (t, cls) { window.setRuntimeState(t); };
+window.setDumpRowStatus = function () { };
+
+// ---- boot: kernel-stubs.js then exploit.js, auto after RCE -> dump ----
+let booted = false;
+function boot() {
+  if (booted) return;
+  booted = true;
+  document.getElementById("go").style.display = "none";
+  const runToken = "lite" + Date.now().toString(36);
+  window.__DEEPSLOP_ACTIVE_RUN = runToken;
+  window.EXPLOIT_PARAMS = new URLSearchParams(PARAMS + "&run=" + runToken);
+  addLog("[LITE] loading kernel-stubs…");
+  const s = document.createElement("script");
+  s.src = "kernel-stubs.js?build=" + BUILD_ID + "&_=" + Date.now();
+  s.onload = function () {
+    addLog("[LITE] loading exploit (fixed 13.60 offsets, scan=0)…");
+    const e = document.createElement("script");
+    e.src = "exploit.js?" + PARAMS + "&run=" + runToken + "&_=" + Date.now();
+    document.head.appendChild(e);
+  };
+  s.onerror = function () { addLog("[ERR] kernel-stubs failed to load"); };
+  document.head.appendChild(s);
+}
+
+// wait for RCE, then auto-start the dump
+let dumpStarted = false;
+(function waitForRce() {
+  if (dumpStarted) return;
+  if (window.notifyReady === true && typeof window.aimRead === "function"
+      && window.deepslopModuleRegistry) {
+    dumpStarted = true;
+    if (window.__LITE_STOP_HB) window.__LITE_STOP_HB();
+    addLog("[LITE] RCE active — starting libkernel_web dump to LAN receiver…");
+    window.__DEEPSLOP_DUMP_REQUEST = {
+      module: "libkernel_web.sprx",
+      speed: "low",
+      mode: "dump",
+      endpoint: ENDPOINT,
+    };
+    const p = document.createElement("script");
+    p.src = "payloads/sprx_dump_lite.js?build=" + BUILD_ID + "&_=" + Date.now();
+    p.onload = function () { if (p.parentNode) p.parentNode.removeChild(p); };
+    document.body.appendChild(p);
+    return;
+  }
+  setTimeout(waitForRce, 500);
+})();
+
+// boot automatically; the button is just a manual fallback
+boot();
+</script>
+</body>
+</html>
