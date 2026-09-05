@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>vis</title></head>
+<body style="background:#101418;color:#cfe;font:14px monospace;padding:12px">
+<div id="cap">visibility probe — open, then press PS button. Watch Aditya's log.</div>
+<div id="out">…</div>
+<script>
+"use strict";
+const LOG_URL = "https://adityas-macbook-pro.tailddb851.ts.net/log/";
+const t0 = Date.now();
+const out = document.getElementById("out");
+function beacon(msg) {
+  const line = "VIS " + msg + " t=" + Math.round((Date.now() - t0) / 1000) + "s " + new Date().toISOString().slice(11, 19);
+  out.textContent = line;
+  try { fetch(LOG_URL + encodeURIComponent(line), { cache: "no-store" }).catch(function () { }); } catch (e) { }
+}
+document.addEventListener("visibilitychange", function () {
+  beacon("EVENT visibilitychange -> " + document.visibilityState + " hidden=" + document.hidden);
+});
+setInterval(function () {
+  beacon("tick hidden=" + document.hidden + " " + document.visibilityState);
+}, 5000);
+beacon("LOAD hidden=" + document.hidden + " " + document.visibilityState);
+</script>
+</body>
+</html>
