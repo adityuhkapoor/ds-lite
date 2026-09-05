@@ -309,6 +309,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (typeof window.setDumpRowStatus === "function")
             window.setDumpRowStatus(name, speedName.toUpperCase() + " / complete", "ok");
         out(message);
+        try { if (typeof window.__dsReleaseTransient === "function") window.__dsReleaseTransient(); } catch (e) { }
         return message;
     }
 
@@ -321,6 +322,7 @@ window.__DEEPSLOP_PAYLOAD_PROMISE = window.__DEEPSLOP_DUMP_PROMISE = (async () =
         if (typeof window.setDumpRowStatus === "function" && request.module)
             window.setDumpRowStatus(request.module, "STOPPED", "bad");
         out(message);
+        try { if (typeof window.__dsReleaseTransient === "function") window.__dsReleaseTransient(); } catch (e) { }
         throw error;
     }
 })();
