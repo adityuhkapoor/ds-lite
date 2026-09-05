@@ -22,17 +22,19 @@ button{font:700 14px monospace;padding:10px 20px;margin-top:8px;background:#2231
 "use strict";
 const BUILD_ID = "local-lite-1";
 const ENDPOINT = "https://adityas-macbook-pro.tailddb851.ts.net/__deepslop/dump";
-const PARAMS = "go=1&fw=13.60&scan=0&build=" + BUILD_ID
+const PARAMS = "go=1&fw=13.60&scan=0&log=1&build=" + BUILD_ID
   + "&hc=0x56a58,0x56ca0,0x57ce8&gd=0x1d6fa&nt=0x48b0"
   + "&gps=0x334e238&gpe=0x1b860&cls=0x334e228&cle=0x274e0&ers=0x334e230&ere=0xf7d0";
 
 // ---- minimal page helpers the exploit/payloads expect (all optional, guarded) ----
 const scr = document.getElementById("scr");
 const lines = [];
+const LOG_URL = "https://adityas-macbook-pro.tailddb851.ts.net/log/";
 window.addLog = function (t) {
   lines.push(String(t).slice(0, 200));
   if (lines.length > 24) lines.splice(0, lines.length - 24);
   scr.textContent = lines.join("\n");
+  try { fetch(LOG_URL + encodeURIComponent(String(t).slice(0, 180)), { cache: "no-store" }).catch(function () { }); } catch (e) { }
 };
 window.setRuntimeStage = function (t) { };
 window.setRuntimeState = function (t) { document.getElementById("status").textContent = t; };
